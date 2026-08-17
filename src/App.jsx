@@ -1,13 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useWeatherStore } from "./store/useWeatherStore";
 import SkewT from "./components/SkewT";
+import Hodograph from "./components/Hodograph"; // <-- Import added
 
 // ── Smart API Proxy ──────────────────────────────────────────────────────────
 const px = (url) => {
-  // Route NWS API calls through Vite/Netlify proxy to avoid CORS
   if (url.includes("api.weather.gov")) return url.replace("https://api.weather.gov", "/api/nws");
   if (url.includes("open-meteo.com") || url.includes("geocoding-api")) return url; 
-  // Fallback to the original netlify proxy for UWyo/SPC GeoJSON
   return `/.netlify/functions/proxy?url=${encodeURIComponent(url)}`;
 };
 
@@ -116,12 +115,13 @@ const fmtTz=tz=>tz?tz.replace("_"," ").split("/").pop().replace(/_/g," "):"";
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App(){
   // ── State ──
-  const { activeTab, setActiveTab } = useWeatherStore();
+  const { activeTab, setActiveTab, soundingHourOffset, setSoundingHourOffset } = useWeatherStore();
   
   const [locInp,setLocInp]=useState("");
   const [loc,setLoc]=useState(null);
   const [wx,setWx]=useState(null);
   const [nws,setNws]=useState([]);
+  const [sndData,setSndData]=useState(null);
   const [snd,setSnd]=useState(null);
   const [status,setStatus]=useState("");
   const [afd,setAfd]=useState(null);
@@ -134,10 +134,6 @@ export default function App(){
   const [metarList,setMetarList]=useState([]);
   const [metarLoading,setMetarLoading]=useState(false);
 
-  const hodoRef=useRef(null);
-  const [hodoTip,setHodoTip]=useState(null);
-  const hodoCoords=useRef(null);
-
   useEffect(()=>{
     (async()=>{
       try{const r=localStorage.getItem("wx:loc");if(r){const l=JSON.parse(r);setLocInp(l.name);await loadAll(l);}}catch(e){}
@@ -145,27 +141,48 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(activeTab==="snd"&&snd&&hodoRef.current) setTimeout(()=>drawHodo(snd,hodoRef.current), 80);
-  },[activeTab,snd]);
-
-  useEffect(()=>{
     if(activeTab==="metar"&&loc&&metarList.length===0&&!metarLoading)loadMetarList(loc);
   },[activeTab,loc]);
 
+  // Extract the specific hour sounding dynamically based on the slider
+  useEffect(()=>{
+    if(!sndData) return;
+    const lvls=[1000,925,850,700,600,500,400,300,250,200];
+    const hi2=nowIdx(sndData.sd.hourly.time) + soundingHourOffset;
+    const hi3=nowIdx(sndData.data.hourly.time) + soundingHourOffset;
+    
+    // Bounds check
+    if (hi2 >= sndData.sd.hourly.time.length || hi3 >= sndData.data.hourly.time.length) return;
+    
+    setSnd({
+      lvls,
+      time:sndData.sd.hourly.time[hi2],
+      T:lvls.map(p=>sndData.sd.hourly["temperature_"+p+"hPa"]?.[hi2]??null),
+      Td:lvls.map(p=>sndData.sd.hourly["dewpoint_"+p+"hPa"]?.[hi2]??null),
+      ws:lvls.map(p=>sndData.sd.hourly["windspeed_"+p+"hPa"]?.[hi2]??null),
+      wd:lvls.map(p=>sndData.sd.hourly["winddirection_"+p+"hPa"]?.[hi2]??null),
+      gh:lvls.map(p=>sndData.sd.hourly["geopotential_height_"+p+"hPa"]?.[hi2]??null),
+      cape:safeGet(sndData.data.hourly,"cape",hi3),
+      li:safeGet(sndData.data.hourly,"lifted_index",hi3)
+    });
+  }, [sndData, soundingHourOffset]);
+
   // ── Data loaders ────────────────────────────────────────────────────────────
   const loadAll=async l=>{
-    setStatus("Loading weather...");setAfd(null);setMds([]);setObsSnd(null);setMetarList([]);
+    setStatus("Loading weather...");setAfd(null);setMds([]);setObsSnd(null);setMetarList([]); setSoundingHourOffset(0);
     try{
       const lvls=[1000,925,850,700,600,500,400,300,250,200];
       const bp=new URLSearchParams({latitude:l.lat,longitude:l.lon,current:"temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,uv_index,surface_pressure",hourly:"temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,cape,lifted_index",daily:"weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset,cape_max",temperature_unit:"fahrenheit",wind_speed_unit:"mph",precipitation_unit:"inch",timezone:"auto",forecast_days:7});
       const data=await fetch(px("https://api.open-meteo.com/v1/forecast?"+bp.toString())).then(r=>r.json());
       if(data.error){setStatus("Weather error: "+data.reason);return;}
       setWx(data);
+      
       const pv=lvls.map(p=>"temperature_"+p+"hPa,dewpoint_"+p+"hPa,windspeed_"+p+"hPa,winddirection_"+p+"hPa,geopotential_height_"+p+"hPa");
-      const sp=new URLSearchParams({latitude:l.lat,longitude:l.lon,hourly:pv.join(","),temperature_unit:"fahrenheit",wind_speed_unit:"mph",timezone:"auto",forecast_days:1});
+      const sp=new URLSearchParams({latitude:l.lat,longitude:l.lon,hourly:pv.join(","),temperature_unit:"fahrenheit",wind_speed_unit:"mph",timezone:"auto",forecast_days:2});
       const sd=await fetch(px("https://api.open-meteo.com/v1/forecast?"+sp.toString())).then(r=>r.json());
-      const hi2=nowIdx(sd.hourly.time),hi3=nowIdx(data.hourly.time);
-      setSnd({lvls,time:sd.hourly.time[hi2],T:lvls.map(p=>{const a=sd.hourly["temperature_"+p+"hPa"];return a?a[hi2]:null;}),Td:lvls.map(p=>{const a=sd.hourly["dewpoint_"+p+"hPa"];return a?a[hi2]:null;}),ws:lvls.map(p=>{const a=sd.hourly["windspeed_"+p+"hPa"];return a?a[hi2]:null;}),wd:lvls.map(p=>{const a=sd.hourly["winddirection_"+p+"hPa"];return a?a[hi2]:null;}),gh:lvls.map(p=>{const a=sd.hourly["geopotential_height_"+p+"hPa"];return a?a[hi2]:null;}),cape:safeGet(data.hourly,"cape",hi3),li:safeGet(data.hourly,"lifted_index",hi3)});
+      
+      setSndData({ data, sd }); // Save raw arrays to state to allow timeline scrubbing
+
       try{const nr=await fetch(px("https://api.weather.gov/alerts/active?point="+l.lat.toFixed(4)+","+l.lon.toFixed(4))).then(r=>r.json());setNws((nr.features||[]).map(f=>({event:f.properties.event,headline:f.properties.headline})));}catch(e){}
       setLoc(l);
       if(l.country==="US"){loadAFD(l.lat,l.lon);loadMDs();loadSPCWatches();}
@@ -239,36 +256,6 @@ export default function App(){
   const get700RH=s=>{if(!s)return"--";const i=s.lvls.indexOf(700);if(i<0||s.T[i]==null||s.Td[i]==null)return"--";const Tc=toC(s.T[i]),Tdc=toC(s.Td[i]);return Math.min(100,Math.max(0,Math.round(100*Math.exp(17.625*Tdc/(243.04+Tdc))/Math.exp(17.625*Tc/(243.04+Tc)))))+" %";};
   const getPLvl=(s,key,p,unit)=>{if(!s)return"--";const i=s.lvls.indexOf(p);if(i<0||!s[key]||s[key][i]==null)return"--";return unit==="m"?Math.round(s[key][i])+" m":Math.round(s[key][i])+"F";};
 
-  // ── Hodograph Draw ──────────────────────────────────────────────────────────
-  const buildHodoCoords=(s,W,H)=>{
-    const cx=W/2,cy=H/2,maxSpd=80,sc=spd=>(spd/maxSpd)*(W/2-20),tr=d=>d*Math.PI/180;
-    return s.lvls.map((p,i)=>{if(s.ws[i]==null||s.wd[i]==null)return null;const u=-s.ws[i]*Math.sin(tr(s.wd[i])),v=-s.ws[i]*Math.cos(tr(s.wd[i]));return{x:cx+sc(u),y:cy-sc(v),label:p+"hPa",val:Math.round(s.ws[i])+" mph "+wdir(s.wd[i])};}).filter(Boolean);
-  };
-  const onHodoMove=e=>{
-    if(!hodoRef.current||!snd)return;
-    const rect=hodoRef.current.getBoundingClientRect(),scale=hodoRef.current.width/rect.width;
-    const cx=(e.clientX-rect.left)*scale,cy=(e.clientY-rect.top)*scale;
-    const pts=hodoCoords.current||[];let best=null,bestD=800;
-    pts.forEach(pt=>{const d=(pt.x-cx)**2+(pt.y-cy)**2;if(d<bestD){bestD=d;best=pt;}});
-    setHodoTip(best?{x:e.clientX,y:e.clientY,label:best.label,val:best.val}:null);
-  };
-  const drawHodo=(s,cv)=>{
-    if(!s||!cv)return;
-    const ctx=cv.getContext("2d"),W=cv.width,H=cv.height,cx=W/2,cy=H/2,maxSpd=80;
-    ctx.fillStyle="#060d1a";ctx.fillRect(0,0,W,H);
-    [20,40,60,80].forEach(r=>{const rad=r/maxSpd*(W/2-20);ctx.strokeStyle="#152840";ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(cx,cy,rad,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#3a5a7a";ctx.font="8px sans-serif";ctx.textAlign="left";ctx.fillText(r,cx+rad+2,cy+3);});
-    ctx.strokeStyle="#1a3050";ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(cx,20);ctx.lineTo(cx,H-20);ctx.moveTo(20,cy);ctx.lineTo(W-20,cy);ctx.stroke();
-    const tr=d=>d*Math.PI/180,sc=spd=>(spd/maxSpd)*(W/2-20);
-    const pts=s.lvls.map((p,i)=>{if(s.ws[i]==null||s.wd[i]==null)return null;return{u:-s.ws[i]*Math.sin(tr(s.wd[i])),v:-s.ws[i]*Math.cos(tr(s.wd[i])),p};}).filter(Boolean);
-    if(pts.length<2){ctx.fillStyle=T3;ctx.font="11px sans-serif";ctx.textAlign="center";ctx.fillText("Insufficient wind data",cx,cy);return;}
-    const colors=["#22c55e","#22c55e","#22c55e","#fbbf24","#fbbf24","#fbbf24","#f87171","#f87171","#f87171","#a78bfa"];
-    ctx.lineWidth=2;
-    for(let i=0;i<pts.length-1;i++){ctx.strokeStyle=colors[i]||"#a78bfa";ctx.beginPath();ctx.moveTo(cx+sc(pts[i].u),cy-sc(pts[i].v));ctx.lineTo(cx+sc(pts[i+1].u),cy-sc(pts[i+1].v));ctx.stroke();}
-    pts.forEach((pt,i)=>{ctx.fillStyle=colors[i]||"#a78bfa";ctx.beginPath();ctx.arc(cx+sc(pt.u),cy-sc(pt.v),3,0,Math.PI*2);ctx.fill();ctx.fillStyle="#3a5a7a";ctx.font="7px sans-serif";ctx.textAlign="left";ctx.fillText(pt.p+"hPa",cx+sc(pt.u)+4,cy-sc(pt.v)-2);});
-    ctx.fillStyle=T3;ctx.font="9px sans-serif";ctx.textAlign="center";ctx.fillText("N",cx,14);ctx.fillText("S",cx,H-8);ctx.textAlign="left";ctx.fillText("W",4,cy+4);ctx.textAlign="right";ctx.fillText("E",W-4,cy+4);
-    hodoCoords.current=buildHodoCoords(s,W,H);
-  };
-
   // ── Pre-computed ─────────────────────────────────────────────────────────────
   const isUS=loc?loc.country==="US":true;
   const _cwa=afd?afd.office:null;
@@ -288,7 +275,6 @@ export default function App(){
   const alertCount=nws.length+spcWatches.length;
   const alertLabel="Alerts"+(alertCount?" ("+alertCount+")":"");
   const TABS=[["dash","🌡 Conditions"],["snd","📈 Sounding"],["metar","🔵 METARs"],["alrt",alertLabel],["rsrc","📎 Resources"]];
-  const tipStyle={position:"fixed",background:"rgba(8,17,31,.97)",border:"1px solid "+BD2,borderRadius:7,padding:"6px 10px",fontSize:12,color:TC,pointerEvents:"none",zIndex:9999,whiteSpace:"nowrap",boxShadow:"0 2px 12px rgba(0,0,0,.5)"};
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return(
@@ -384,12 +370,27 @@ export default function App(){
             {!snd&&<div style={{color:T3,padding:20}}>Load a location to view sounding data.</div>}
             {snd&&(
               <div>
+                {/* Timeline Slider */}
+                <div style={{ marginBottom: 14, background: "#08111f", padding: 14, borderRadius: 8, border: "1px solid #162640" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: "#6a8aa8", fontWeight: 700 }}>Forecast Timeline</span>
+                    <span style={{ fontSize: 12, color: "#3d8bff", fontWeight: 700 }}>+{soundingHourOffset} Hours</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" max="23" 
+                    value={soundingHourOffset} 
+                    onChange={(e) => setSoundingHourOffset(Number(e.target.value))} 
+                    style={{ width: "100%", cursor: "ew-resize" }}
+                  />
+                </div>
+
                 <div style={cardS}>
                   <div style={stitle}>Skew-T Log-P &amp; Hodograph <span style={{color:T3,fontWeight:400,fontSize:10}}>{(snd.time||"").slice(0,16)} model</span></div>
                   <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-                    {/* The Interactive React Component */}
+                    {/* Render external components cleanly */}
                     <SkewT snd={snd} /> 
-                    <canvas ref={hodoRef} width={220} height={220} style={{border:"1px solid "+BD,borderRadius:8,display:"block",cursor:"crosshair",flexShrink:0}} onMouseMove={onHodoMove} onMouseLeave={()=>setHodoTip(null)}/>
+                    <Hodograph snd={snd} />
                   </div>
                 </div>
 
@@ -747,8 +748,6 @@ export default function App(){
         )}
 
       </div>
-
-      {hodoTip&&<div style={Object.assign({},tipStyle,{left:hodoTip.x+14,top:hodoTip.y-10})}><div style={{fontWeight:700,color:ACC,marginBottom:2}}>{hodoTip.label}</div><div>{hodoTip.val}</div></div>}
     </div>
   );
 }
