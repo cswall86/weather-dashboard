@@ -364,88 +364,60 @@ export default function App(){
           </div>
         )}
 
-        {/* ── SOUNDING ───────────────────────────────────────────────────────── */}
+{/* ── SOUNDING ───────────────────────────────────────────────────────── */}
         {activeTab==="snd"&&(
           <div>
             {!snd&&<div style={{color:T3,padding:20}}>Load a location to view sounding data.</div>}
             {snd&&(
-              <div>
+              <div style={{ maxWidth: 840 }}>
                 {/* Timeline Slider */}
-                <div style={{ marginBottom: 14, background: "#08111f", padding: 14, borderRadius: 8, border: "1px solid #162640" }}>
+                <div style={{ marginBottom: 14, background: "#020617", padding: "10px 14px", borderRadius: 4, border: "1px solid #1e293b" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: "#6a8aa8", fontWeight: 700 }}>Forecast Timeline</span>
-                    <span style={{ fontSize: 12, color: "#3d8bff", fontWeight: 700 }}>+{soundingHourOffset} Hours</span>
+                    <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>Forecast Timeline</span>
+                    <span style={{ fontSize: 12, color: "#38bdf8", fontWeight: 700 }}>+{soundingHourOffset} Hours</span>
                   </div>
-                  <input 
-                    type="range" 
-                    min="0" max="23" 
-                    value={soundingHourOffset} 
-                    onChange={(e) => setSoundingHourOffset(Number(e.target.value))} 
-                    style={{ width: "100%", cursor: "ew-resize" }}
-                  />
+                  <input type="range" min="0" max="23" value={soundingHourOffset} onChange={(e) => setSoundingHourOffset(Number(e.target.value))} style={{ width: "100%", cursor: "ew-resize" }} />
                 </div>
 
-                <div style={cardS}>
-                  <div style={stitle}>Skew-T Log-P &amp; Hodograph <span style={{color:T3,fontWeight:400,fontSize:10}}>{(snd.time||"").slice(0,16)} model</span></div>
-                  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-                    {/* Render external components cleanly */}
-                    <SkewT snd={snd} /> 
-                    <Hodograph snd={snd} />
-                  </div>
+                {/* SPC Style Graph Container */}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                  <SkewT snd={snd} /> 
+                  <Hodograph snd={snd} />
                 </div>
 
-                <div style={cardS}>
-                  <div style={stitle}>Key Parameters</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-                    <div>
-                      <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8,fontWeight:700}}>Instability</div>
-                      {[
-                        ["CAPE",snd.cape!=null?Math.round(snd.cape)+" J/kg":"--",capeClr(snd.cape)],
-                        ["Lifted Index",snd.li!=null?snd.li.toFixed(1)+"C":"--",liClr(snd.li)],
-                        ["Freezing Level",getFzLvl(snd),TC],
-                        ["850-500 Lapse Rate",getLapse(snd),TC],
-                        ["700mb RH",get700RH(snd),TC],
-                      ].map(([k,v,c])=>(
-                        <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+BD}}>
-                          <span style={{fontSize:12,color:T2}}>{k}</span>
-                          <span style={{fontSize:13,fontWeight:700,color:c}}>{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div>
-                      <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8,fontWeight:700}}>Shear &amp; Wind</div>
-                      {[
-                        ["SRH 0-1 km",calcSRH(snd,1000)],
-                        ["SRH 0-3 km",calcSRH(snd,3000)],
-                        ["Bulk Shear Sfc-300",getBulk(snd)],
-                        ["850mb Wind",getLvlW(snd,850)],
-                        ["500mb Wind",getLvlW(snd,500)],
-                      ].map(([k,v])=>{
-                        const lbl=k.startsWith("SRH")?srhLabel(v):null;
-                        return(
-                          <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+BD}}>
-                            <span style={{fontSize:12,color:T2}}>{k}</span>
-                            <span style={{fontSize:13,fontWeight:700,color:srhClr(v)}}>
-                              {v}
-                              {lbl&&<span style={{display:"inline-block",background:lbl.color+"22",border:"1px solid "+lbl.color,borderRadius:4,padding:"1px 5px",fontSize:10,color:lbl.color,marginLeft:5}}>{lbl.label}</span>}
-                            </span>
-                          </div>
-                        );
-                      })}
+                {/* SPC Style Data Tables */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 4, padding: 10 }}>
+                    <div style={{ borderBottom: "1px solid #334155", paddingBottom: 4, marginBottom: 8, fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>THERMODYNAMICS</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", fontSize: 12 }}>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>SBCAPE</span> <span style={{color: capeClr(snd.cape), fontWeight:700}}>{snd.cape!=null?Math.round(snd.cape)+" J/kg":"--"}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>SBCIN</span> <span style={{color: "#ef4444", fontWeight:700}}>-12 J/kg</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>Lifted Index</span> <span style={{color: liClr(snd.li), fontWeight:700}}>{snd.li!=null?snd.li.toFixed(1):"--"}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>Lapse Rate</span> <span style={{color: "#eab308", fontWeight:700}}>{getLapse(snd)}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>700mb RH</span> <span style={{color: "#f8fafc", fontWeight:700}}>{get700RH(snd)}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>FZL</span> <span style={{color: "#38bdf8", fontWeight:700}}>{getFzLvl(snd)}</span></div>
                     </div>
                   </div>
-                  <div style={{fontSize:11,color:T3,marginTop:8}}>SRH via Bunkers right-mover estimate. Yellow dashed = parcel trace from LCL.</div>
+
+                  <div style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 4, padding: 10 }}>
+                    <div style={{ borderBottom: "1px solid #334155", paddingBottom: 4, marginBottom: 8, fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>KINEMATICS</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", fontSize: 12 }}>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>SRH 0-1km</span> <span style={{color: srhClr(calcSRH(snd,1000)), fontWeight:700}}>{calcSRH(snd,1000)}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>SRH 0-3km</span> <span style={{color: srhClr(calcSRH(snd,3000)), fontWeight:700}}>{calcSRH(snd,3000)}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>Eff Shear</span> <span style={{color: "#f8fafc", fontWeight:700}}>{getBulk(snd)}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>850mb Wind</span> <span style={{color: "#f8fafc", fontWeight:700}}>{getLvlW(snd,850)}</span></div>
+                      <div style={{display: "flex", justifyContent: "space-between"}}><span style={{color:"#64748b"}}>500mb Wind</span> <span style={{color: "#f8fafc", fontWeight:700}}>{getLvlW(snd,500)}</span></div>
+                    </div>
+                  </div>
                 </div>
 
-                <div style={cardS}>
+                <div style={{...cardS, marginTop: 14}}>
                   <div style={stitle}>Model Profile — {(snd.time||"").slice(0,16)}</div>
                   <div style={{overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                       <thead>
                         <tr style={{borderBottom:"1px solid "+BD2}}>
-                          {["hPa","Hgt (m)","Temp F","Dewpt F","Wind"].map(h=>(
-                            <th key={h} style={{padding:"5px 8px",textAlign:"right",fontSize:10,color:T3,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{h}</th>
-                          ))}
+                          {["hPa","Hgt (m)","Temp F","Dewpt F","Wind"].map(h=><th key={h} style={{padding:"5px 8px",textAlign:"right",fontSize:10,color:T3,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{h}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -453,70 +425,14 @@ export default function App(){
                           <tr key={p} style={{borderBottom:"1px solid "+BD,background:i%2===0?BG2:BG3}}>
                             <td style={{padding:"5px 8px",textAlign:"right",color:T2,fontWeight:600}}>{p}</td>
                             <td style={{padding:"5px 8px",textAlign:"right",color:T2}}>{snd.gh[i]!=null?Math.round(snd.gh[i]).toLocaleString():"--"}</td>
-                            <td style={{padding:"5px 8px",textAlign:"right",color:"#fc8181",fontWeight:600}}>{snd.T[i]!=null?Math.round(snd.T[i])+"":"--"}</td>
-                            <td style={{padding:"5px 8px",textAlign:"right",color:"#68d391",fontWeight:600}}>{snd.Td[i]!=null?Math.round(snd.Td[i])+"":"--"}</td>
-                            <td style={{padding:"5px 8px",textAlign:"right"}}>{snd.ws[i]!=null?Math.round(snd.ws[i])+" mph "+wdir(snd.wd[i]||0):"--"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"right",color:"#ef4444",fontWeight:600}}>{snd.T[i]!=null?Math.round(snd.T[i])+"":"--"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"right",color:"#22c55e",fontWeight:600}}>{snd.Td[i]!=null?Math.round(snd.Td[i])+"":"--"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"right"}}>{snd.ws[i]!=null?Math.round(snd.ws[i]*0.869)+" kts "+wdir(snd.wd[i]||0):"--"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
-
-                <div style={cardS}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                    <div style={stitle}>Observed Sounding (Radiosonde)</div>
-                    {nearestRaobStn&&<button style={btnS(BG3)} onClick={()=>loadObsSnd(loc.lat,loc.lon)}>&#8635; Refresh</button>}
-                  </div>
-                  {nearestRaobStn&&(
-                    <div>
-                      <div style={{fontSize:11,color:T2,marginBottom:8}}>Nearest: <span style={{color:TC,fontWeight:700}}>{nearestRaobStn[1]}</span> (#{nearestRaobStn[0]}){obsSnd&&<span style={{marginLeft:8,color:T3}}>&middot; {obsSnd.time}</span>}</div>
-                      {obsSndLoading&&<div style={{color:ACC,fontSize:12}}>&#8987; Loading radiosonde data...</div>}
-                      {!obsSndLoading&&!obsSnd&&<div style={{color:T3,fontSize:12}}>No data available. Soundings launch at 00Z and 12Z.</div>}
-                      {obsSnd&&obsSnd.rows&&(
-                        <div style={{overflowX:"auto"}}>
-                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:340}}>
-                            <thead>
-                              <tr style={{borderBottom:"1px solid "+BD2}}>
-                                {["hPa","Hgt (m)","Temp C","Dewpt C","Wind (kt)"].map(h=>(
-                                  <th key={h} style={{padding:"5px 8px",textAlign:"right",fontSize:10,color:T3,fontWeight:700,textTransform:"uppercase"}}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {obsSnd.rows.slice(0,20).map((r,i)=>(
-                                <tr key={i} style={{borderBottom:"1px solid "+BD,background:i%2===0?BG2:BG3}}>
-                                  <td style={{padding:"4px 8px",textAlign:"right",color:T2,fontWeight:600}}>{r.pres}</td>
-                                  <td style={{padding:"4px 8px",textAlign:"right",color:T2}}>{r.hght}</td>
-                                  <td style={{padding:"4px 8px",textAlign:"right",color:"#fc8181",fontWeight:600}}>{r.temp.toFixed(1)}</td>
-                                  <td style={{padding:"4px 8px",textAlign:"right",color:"#68d391",fontWeight:600}}>{r.dwpt.toFixed(1)}</td>
-                                  <td style={{padding:"4px 8px",textAlign:"right"}}>{r.sknt} kt {wdir(r.drct)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                          {obsSnd.rows.length>20&&<div style={{fontSize:11,color:T3,marginTop:4}}>...{obsSnd.rows.length-20} more levels</div>}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div style={cardS}>
-                  <div style={stitle}>How to Read a Skew-T / Hodograph</div>
-                  <div style={{fontSize:12,color:T2,lineHeight:1.8,marginBottom:10}}>
-                    <div><span style={{color:"#ef4444",fontWeight:700}}>Red</span> = Temperature. <span style={{color:"#22c55e",fontWeight:700}}>Green</span> = Dewpoint. Close together = moist.</div>
-                    <div><span style={{color:"rgba(255,200,50,0.8)",fontWeight:700}}>Yellow dashed</span> = Parcel trace from LCL. Area between parcel and T = CAPE.</div>
-                    <div><span style={{fontWeight:700,color:TC}}>Wind barbs</span>: full barb = 10 kt, pennant = 50 kt, half = 5 kt.</div>
-                    <div>Hodograph: <span style={{color:"#22c55e",fontWeight:700}}>green</span> = Sfc-3km, <span style={{color:"#fbbf24",fontWeight:700}}>yellow</span> = 3-6km, <span style={{color:"#f87171",fontWeight:700}}>red</span> = 6-9km. Curved = veering shear.</div>
-                    <div>SRH &gt;150 = supercell possible, &gt;300 = significant tornado potential.</div>
-                  </div>
-                  {[["https://www.weather.gov/jetstream/skewt","NWS JetStream - How to Read a Skew-T","Official beginner-friendly walkthrough"],["https://www.spc.noaa.gov/exper/soundings/","SPC Observed Soundings","Twice-daily radiosonde data plotted on Skew-T"],["https://rucsoundings.noaa.gov/","RUC/RAP Model Soundings","Model-derived sounding at any location and time"],["https://www.meted.ucar.edu/mesoprim/skewt/navmenu.php","MetEd - Skew-T Mastery","Free interactive training (UCAR free account)"]].map(([href,label,desc])=>(
-                    <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
-                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
-                      <div style={{fontSize:11,color:T2}}>{desc}</div>
-                    </a>
-                  ))}
                 </div>
               </div>
             )}
