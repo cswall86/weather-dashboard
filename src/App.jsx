@@ -472,7 +472,6 @@ export default function App(){
                 <div style={{marginBottom:12}}>
                   <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>Regional Links</div>
                   
-                  {/* Only render these specific AWC links if we successfully fetched station IDs */}
                   {metarList.length > 0 && (
                     <>
                       <a href={`https://aviationweather.gov/data/metar/?id=${metarList.map(m=>m.stationId).slice(0,8).join(",")}&decoded=yes&hours=2`} target="_blank" rel="noopener noreferrer"
@@ -489,14 +488,13 @@ export default function App(){
                     </>
                   )}
 
-                  {/* AWC Bounding Box Map - Works regardless of API success by using lat/lon */}
-                  <a href={`https://aviationweather.gov/map/?bbox=${(loc.lon-2).toFixed(1)},${(loc.lat-1.5).toFixed(1)},${(loc.lon+2).toFixed(1)},${(loc.lat+1.5).toFixed(1)}`} target="_blank" rel="noopener noreferrer"
+                  {/* FIXED AWC MAP LINK: Uses the new GFA endpoint with center and zoom parameters */}
+                  <a href={`https://aviationweather.gov/gfa/?basemap=esriDark&mapLayers=basicMap,airports,metar&center=${loc.lat.toFixed(3)},${loc.lon.toFixed(3)}&zoom=8`} target="_blank" rel="noopener noreferrer"
                     style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
                     <div style={{fontWeight:700,color:ACC,marginBottom:2}}>AWC METAR Map — Zoomed to {loc.name} &#8599;</div>
                     <div style={{fontSize:11,color:T2}}>Interactive map showing all METAR stations in this region</div>
                   </a>
 
-                  {/* NWS Hourly Obs - Uses the dynamic forecast office we fetched for the Alerts tab */}
                   {afd && afd.office && (
                     <a href={`https://forecast.weather.gov/product.php?site=${afd.office}&issuedby=${afd.office}&product=OSO&format=CI`} target="_blank" rel="noopener noreferrer"
                       style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
@@ -512,7 +510,7 @@ export default function App(){
                 ["https://aviationweather.gov/data/metar/",
                  "Aviation Weather Center — METAR Viewer",
                  "Search any station ID worldwide"],
-                ["https://aviationweather.gov/map/",
+                ["https://aviationweather.gov/gfa/",
                  "AWC METAR Map (interactive)",
                  "Pan and zoom to see all reporting stations on a map"],
                 ["https://mesonet.agron.iastate.edu/ASOS/",
