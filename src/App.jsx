@@ -438,8 +438,7 @@ export default function App(){
             )}
           </div>
         )}
-
-        {/* ── METARs ─────────────────────────────────────────────────────────── */}
+       {/* ── METARs ─────────────────────────────────────────────────────────── */}
         {activeTab==="metar"&&(
           <div>
             <div style={cardS}>
@@ -449,6 +448,8 @@ export default function App(){
               </div>
 
               {metarLoading && <div style={{ color: "#38bdf8", marginBottom: 12 }}>Loading nearby stations...</div>}
+              
+              {/* Display live NWS observations if available */}
               {!metarLoading && metarList.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   {metarList.map((m) => (
@@ -459,25 +460,50 @@ export default function App(){
                   ))}
                 </div>
               )}
+              
+              {!metarLoading && loc && metarList.length === 0 && (
+                <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16 }}>
+                  Unable to load live station data for this location right now. See regional links below.
+                </div>
+              )}
 
-              {/* Dynamically generated region links based on fetched stations */}
-              {loc && metarList.length > 0 && (
+              {/* Dynamically generated region links */}
+              {loc && (
                 <div style={{marginBottom:12}}>
                   <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>Regional Links</div>
-                  {[
-                    [`https://aviationweather.gov/data/metar/?id=${metarList.map(m=>m.stationId).slice(0,8).join(",")}&decoded=yes&hours=2`,
-                     `Decoded METARs — Near ${loc.name}`,
-                     "Top 8 nearest stations — decoded, human-readable format"],
-                    [`https://aviationweather.gov/data/metar/?id=${metarList.map(m=>m.stationId).slice(0,8).join(",")}&decoded=no&hours=2`,
-                     `Raw METARs — Near ${loc.name}`,
-                     "Same stations — raw METAR strings"],
-                  ].map(([href,label,desc])=>(
-                    <a key={href} href={href} target="_blank" rel="noopener noreferrer"
+                  
+                  {/* Only render these specific AWC links if we successfully fetched station IDs */}
+                  {metarList.length > 0 && (
+                    <>
+                      <a href={`https://aviationweather.gov/data/metar/?id=${metarList.map(m=>m.stationId).slice(0,8).join(",")}&decoded=yes&hours=2`} target="_blank" rel="noopener noreferrer"
+                        style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                        <div style={{fontWeight:700,color:ACC,marginBottom:2}}>Decoded METARs — Near {loc.name} &#8599;</div>
+                        <div style={{fontSize:11,color:T2}}>Top nearest stations — decoded, human-readable format</div>
+                      </a>
+                      
+                      <a href={`https://aviationweather.gov/data/metar/?id=${metarList.map(m=>m.stationId).slice(0,8).join(",")}&decoded=no&hours=2`} target="_blank" rel="noopener noreferrer"
+                        style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                        <div style={{fontWeight:700,color:ACC,marginBottom:2}}>Raw METARs — Near {loc.name} &#8599;</div>
+                        <div style={{fontSize:11,color:T2}}>Same stations — raw METAR strings</div>
+                      </a>
+                    </>
+                  )}
+
+                  {/* AWC Bounding Box Map - Works regardless of API success by using lat/lon */}
+                  <a href={`https://aviationweather.gov/map/?bbox=${(loc.lon-2).toFixed(1)},${(loc.lat-1.5).toFixed(1)},${(loc.lon+2).toFixed(1)},${(loc.lat+1.5).toFixed(1)}`} target="_blank" rel="noopener noreferrer"
+                    style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                    <div style={{fontWeight:700,color:ACC,marginBottom:2}}>AWC METAR Map — Zoomed to {loc.name} &#8599;</div>
+                    <div style={{fontSize:11,color:T2}}>Interactive map showing all METAR stations in this region</div>
+                  </a>
+
+                  {/* NWS Hourly Obs - Uses the dynamic forecast office we fetched for the Alerts tab */}
+                  {afd && afd.office && (
+                    <a href={`https://forecast.weather.gov/product.php?site=${afd.office}&issuedby=${afd.office}&product=OSO&format=CI`} target="_blank" rel="noopener noreferrer"
                       style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
-                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
-                      <div style={{fontSize:11,color:T2}}>{desc}</div>
+                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>NWS {afd.office} — Hourly Surface Obs (OSO) &#8599;</div>
+                      <div style={{fontSize:11,color:T2}}>Official NWS {afd.office} hourly observations product</div>
                     </a>
-                  ))}
+                  )}
                 </div>
               )}
 
@@ -502,7 +528,6 @@ export default function App(){
             </div>
           </div>
         )}
-
         {/* ── ALERTS ─────────────────────────────────────────────────────────── */}
         {activeTab==="alrt"&&(
           <div>
