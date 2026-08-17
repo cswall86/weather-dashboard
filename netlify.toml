@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/api/nws/*"
+  to = "https://api.weather.gov/:splat"
+  status = 200
+  force = true
