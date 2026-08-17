@@ -445,40 +445,35 @@ export default function App(){
             <div style={cardS}>
               <div style={stitle}>METAR Stations{loc?" near "+loc.name:""}</div>
               <div style={{fontSize:12,color:T2,lineHeight:1.7,marginBottom:14}}>
-                METARs are surface aviation weather observations issued every 20–60 minutes by airport stations. The links below open live viewers pre-loaded for your region. <strong style={{color:TC}}>KYNG</strong> (Youngstown-Warren Regional) and surrounding stations will be listed there.
+                METARs are surface aviation weather observations issued every 20–60 minutes by airport stations.
               </div>
 
-              {metarLoading && <div style={{ color: "#3d8bff", marginBottom: 12 }}>Loading nearby stations...</div>}
+              {metarLoading && <div style={{ color: "#38bdf8", marginBottom: 12 }}>Loading nearby stations...</div>}
               {!metarLoading && metarList.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   {metarList.map((m) => (
-                    <div key={m.stationId} style={{ background: "#0d1b30", border: "1px solid #162640", borderRadius: 6, padding: "8px 10px", marginBottom: 6 }}>
-                      <div style={{ fontWeight: 700, color: "#3d8bff" }}>{m.stationId} <span style={{ color: "#6a8aa8", fontWeight: 400, fontSize: 11 }}>{new Date(m.reportTime).toLocaleTimeString()}</span></div>
-                      <div style={{ fontFamily: "monospace", fontSize: 11, color: "#cdd9e8", marginTop: 4 }}>{m.rawOb}</div>
+                    <div key={m.stationId} style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 4, padding: "8px 10px", marginBottom: 6 }}>
+                      <div style={{ fontWeight: 700, color: "#38bdf8" }}>{m.stationId} <span style={{ color: "#64748b", fontWeight: 400, fontSize: 11 }}>{new Date(m.reportTime).toLocaleTimeString()}</span></div>
+                      <div style={{ fontFamily: "monospace", fontSize: 11, color: "#f8fafc", marginTop: 4 }}>{m.rawOb}</div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {loc&&(
+              {/* Dynamically generated region links based on fetched stations */}
+              {loc && metarList.length > 0 && (
                 <div style={{marginBottom:12}}>
-                  <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>Your Region</div>
+                  <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>Regional Links</div>
                   {[
-                    ["https://aviationweather.gov/data/metar/?id=KYNG,KCLE,KPBZ,KPIT,KERI,KAKR,KCAD,KBKL&decoded=yes&hours=2",
-                     "Decoded METARs — NE Ohio / W PA",
-                     "KYNG, KCLE, KPBZ, KPIT, KERI, KAKR and more — decoded, human-readable format"],
-                    ["https://aviationweather.gov/data/metar/?id=KYNG,KCLE,KPBZ,KPIT,KERI,KAKR,KCAD,KBKL&decoded=no&hours=2",
-                     "Raw METARs — NE Ohio / W PA",
+                    [`https://aviationweather.gov/data/metar/?id=${metarList.map(m=>m.stationId).slice(0,8).join(",")}&decoded=yes&hours=2`,
+                     `Decoded METARs — Near ${loc.name}`,
+                     "Top 8 nearest stations — decoded, human-readable format"],
+                    [`https://aviationweather.gov/data/metar/?id=${metarList.map(m=>m.stationId).slice(0,8).join(",")}&decoded=no&hours=2`,
+                     `Raw METARs — Near ${loc.name}`,
                      "Same stations — raw METAR strings"],
-                    ["https://forecast.weather.gov/product.php?site=CLE&issuedby=CLE&product=OSO&format=CI",
-                     "NWS Cleveland — Hourly Surface Obs (OSO)",
-                     "Official NWS CLE hourly observations product"],
-                    ["https://aviationweather.gov/map/",
-                     "AWC METAR Map",
-                     "Interactive map showing all METAR stations globally"],
                   ].map(([href,label,desc])=>(
                     <a key={href} href={href} target="_blank" rel="noopener noreferrer"
-                      style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                      style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
                       <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
                       <div style={{fontSize:11,color:T2}}>{desc}</div>
                     </a>
@@ -490,35 +485,20 @@ export default function App(){
               {[
                 ["https://aviationweather.gov/data/metar/",
                  "Aviation Weather Center — METAR Viewer",
-                 "Search any station ID worldwide — decoded and raw formats, TAF included"],
+                 "Search any station ID worldwide"],
                 ["https://aviationweather.gov/map/",
                  "AWC METAR Map (interactive)",
                  "Pan and zoom to see all reporting stations on a map"],
-                ["https://aviationweather.gov/api/data/metar?ids=KYNG&format=raw&hours=2",
-                 "Direct API — KYNG raw (bookmark this)",
-                 "Bookmark-friendly direct link to Youngstown-Warren Regional latest obs"],
                 ["https://mesonet.agron.iastate.edu/ASOS/",
                  "IEM ASOS Station List",
-                 "Full list of all ASOS stations with links to their observation history"],
+                 "Full list of all ASOS stations with links to their observation history archive"],
               ].map(([href,label,desc])=>(
                 <a key={href} href={href} target="_blank" rel="noopener noreferrer"
-                  style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                  style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:4,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
                   <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
                   <div style={{fontSize:11,color:T2}}>{desc}</div>
                 </a>
               ))}
-
-              {isUS&&(
-                <div style={{marginTop:14}}>
-                  <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>Quick Station Lookup</div>
-                  <div style={{fontSize:12,color:T2,marginBottom:8}}>Paste any of these into the AWC viewer above:</div>
-                  <div style={{fontFamily:"'Courier New',monospace",fontSize:12,background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",lineHeight:2}}>
-                    {["KYNG — Youngstown-Warren Regional, OH","KCLE — Cleveland Hopkins Intl, OH","KPBZ — Pittsburgh/Moon Township, PA","KPIT — Pittsburgh Intl, PA","KERI — Erie Intl, PA","KAKR — Akron-Canton, OH","KCMH — Columbus, OH","KBUF — Buffalo, NY"].map(s=>(
-                      <div key={s} style={{color:TC}}>{s}</div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
