@@ -3,12 +3,12 @@ import { useWeatherStore } from "./store/useWeatherStore";
 import SkewT from "./components/SkewT";
 
 // ── Smart API Proxy ──────────────────────────────────────────────────────────
-// Open-Meteo allows CORS natively. NWS routes through our Vite/Netlify proxy.
-// SPC and UWyo soundings use a public CORS proxy.
 const px = (url) => {
+  // Route NWS API calls through Vite/Netlify proxy to avoid CORS
   if (url.includes("api.weather.gov")) return url.replace("https://api.weather.gov", "/api/nws");
   if (url.includes("open-meteo.com") || url.includes("geocoding-api")) return url; 
-  return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+  // Fallback to the original netlify proxy for UWyo/SPC GeoJSON
+  return `/.netlify/functions/proxy?url=${encodeURIComponent(url)}`;
 };
 
 // ── WMO helpers ───────────────────────────────────────────────────────────────
@@ -42,9 +42,23 @@ async function geocode(q){
   return{lat:m.latitude,lon:m.longitude,country:m.country_code,name:m.name+(m.admin1?", "+m.admin1:"")+", "+m.country_code};
 }
 
-// ── RAOB & SRH Helpers ────────────────────────────────────────────────────────
-const RAOB_STNS=[["72469","Denver, CO",39.75,-104.87],["72520","Albany, NY",42.75,-73.80],["74560","Louisville, KY",38.18,-85.73]]; // Truncated for brevity
+// ── RAOB & EU Data ────────────────────────────────────────────────────────────
+const RAOB_STNS=[
+  ["72469","Denver, CO",39.75,-104.87],["72558","Omaha, NE",41.32,-96.37],["72357","Amarillo, TX",35.22,-101.70],["72265","Little Rock, AR",34.83,-92.25],["72493","Rapid City, SD",44.07,-103.20],["72776","Great Falls, MT",47.52,-111.38],["72681","Medford, OR",42.37,-122.87],["72489","Dodge City, KS",37.77,-99.97],["72451","Springfield, MO",37.23,-93.40],["72340","Fort Worth, TX",32.84,-97.30],["72274","Shreveport, LA",32.52,-93.82],["72230","Lake Charles, LA",30.12,-93.22],["72210","Corpus Christi, TX",27.77,-97.50],["72248","Midland, TX",31.95,-102.18],["72363","Albuquerque, NM",35.04,-106.62],["72387","Topeka, KS",39.07,-95.63],["72426","Davenport, IA",41.61,-90.58],["72533","Green Bay, WI",44.48,-88.13],["72562","Aberdeen, SD",45.45,-98.42],["72645","Bismarck, ND",46.77,-100.75],["72518","Pittsburgh, PA",40.53,-80.23],["72520","Albany, NY",42.75,-73.80],["72528","Chatham, MA",41.67,-69.97],["72606","Buffalo, NY",42.93,-78.73],["72634","Gaylord, MI",45.03,-84.68],["72672","Intl Falls, MN",48.57,-93.38],["74560","Louisville, KY",38.18,-85.73],["72317","Jackson, MS",32.32,-90.08],["72208","Miami, FL",25.75,-80.38],["72214","Jacksonville, FL",30.50,-81.70],["72327","Greer, SC",34.90,-82.22],["72403","Huntington, WV",38.37,-82.55],["72501","Wallops, VA",37.93,-75.48],["72632","Detroit, MI",42.33,-83.05],["72659","Duluth, MN",46.83,-92.18],["72364","Salt Lake City, UT",40.77,-111.97],["72293","Oakland, CA",37.73,-122.22],["72391","Tucson, AZ",32.12,-110.93],["72597","Spokane, WA",47.62,-117.53],
+  ["03808","Camborne, UK",50.22,-5.32],["03496","Herstmonceux, UK",50.90,0.33],["03005","Lerwick, UK",60.13,-1.18],["03953","Dublin, Ireland",53.43,-6.27],
+  ["07145","Brest, France",48.45,-4.42],["07481","Nimes, France",43.87,4.40],["07110","Bordeaux, France",44.83,-0.69],["07150","Trappes (Paris), France",48.77,2.01],
+  ["10113","Bergen, Germany",52.81,9.93],["10393","Berlin-Tempelhof, Germany",52.63,13.50],["10739","Stuttgart, Germany",48.83,9.20],["10868","Munich, Germany",48.25,11.55],
+  ["06260","De Bilt, Netherlands",52.10,5.18],["01400","Oslo, Norway",59.94,10.72],["02963","Stockholm, Sweden",59.35,17.95],["04220","Copenhagen, Denmark",55.63,12.13],["02365","Helsinki, Finland",60.32,24.97],
+  ["08001","A Coruna, Spain",43.37,-8.42],["08202","Zaragoza, Spain",41.67,-1.02],["08495","Barcelona, Spain",41.29,2.07],["08221","Madrid, Spain",40.45,-3.58],
+  ["16080","Brindisi, Italy",40.65,17.95],["16144","Udine, Italy",46.03,13.19],["16113","Milano, Italy",45.43,9.28],
+  ["12374","Warsaw, Poland",52.17,20.97],["12843","Prague, Czechia",50.02,14.45],["11035","Vienna, Austria",48.25,16.36],
+  ["16716","Athens, Greece",37.90,23.73],["17062","Istanbul, Turkey",40.97,28.82],["06610","Lisbon, Portugal",38.77,-9.13]
+];
 const nearestRaob=(lat,lon)=>{let b=null,bd=Infinity;RAOB_STNS.forEach(s=>{const d=Math.sqrt((lat-s[2])**2+(lon-s[3])**2);if(d<bd){bd=d;b=s;}});return b;};
+
+const EU_MET_DATA={GB:{name:"Met Office (UK)",links:[["https://www.metoffice.gov.uk/","Met Office Homepage","UK national weather service"],["https://www.metoffice.gov.uk/weather/warnings-and-advice/uk-storm-centre","UK Storm Centre","Active named storms and warnings"]]},FR:{name:"Meteo-France",links:[["https://meteofrance.com/","Meteo-France Homepage","France's national meteorological service"],["https://vigilance.meteofrance.fr/","Meteo-France Vigilance","Real-time weather warnings by department"]]},DE:{name:"DWD (Germany)",links:[["https://www.dwd.de/EN/Home/home_node.html","DWD Homepage","Deutscher Wetterdienst"],["https://kachelmannwetter.com/","Kachelmannwetter","German-language model viewer and radar"]]},NL:{name:"KNMI (Netherlands)",links:[["https://www.knmi.nl/home","KNMI Homepage","Royal Netherlands Meteorological Institute"]]},SE:{name:"SMHI (Sweden)",links:[["https://www.smhi.se/en","SMHI Homepage","Swedish Meteorological and Hydrological Institute"]]},NO:{name:"MET Norway",links:[["https://www.met.no/en","MET Norway Homepage","Norway's national weather service"],["https://www.yr.no/en","Yr.no","Excellent public-facing forecast site"]]},IE:{name:"Met Eireann (Ireland)",links:[["https://www.met.ie/","Met Eireann Homepage","Ireland's national meteorological service"]]},ES:{name:"AEMET (Spain)",links:[["https://www.aemet.es/en/portada","AEMET Homepage","Spain's state meteorological agency"]]},IT:{name:"ARPA Meteo (Italy)",links:[["https://www.meteoam.it/","Aeronautica Militare Meteoam","Italy's military met service"]]},PT:{name:"IPMA (Portugal)",links:[["https://www.ipma.pt/en/","IPMA Homepage","Portuguese Institute for Sea and Atmosphere"]]},DK:{name:"DMI (Denmark)",links:[["https://www.dmi.dk/en/","DMI Homepage","Danish Meteorological Institute"]]},FI:{name:"FMI (Finland)",links:[["https://en.ilmatieteenlaitos.fi/","FMI Homepage","Finnish Meteorological Institute"]]},AT:{name:"GeoSphere Austria",links:[["https://www.zamg.ac.at/cms/en/","ZAMG / GeoSphere Austria","Austria's national weather service"]]},CZ:{name:"CHMU (Czechia)",links:[["https://www.chmi.cz/?l=en","CHMU Homepage","Czech Hydrometeorological Institute"]]},PL:{name:"IMGW (Poland)",links:[["https://www.imgw.pl/en","IMGW Homepage","Institute of Meteorology and Water Management"]]},GR:{name:"EMY (Greece)",links:[["https://www.emy.gr/emy/en/","EMY Homepage","Hellenic National Meteorological Service"]]},TR:{name:"MGM (Turkey)",links:[["https://www.mgm.gov.tr/en-US/","MGM Homepage","Turkish State Meteorological Service"]]}};
+
+// ── SRH Calculation ───────────────────────────────────────────────────────────
 const calcSRH=(s,topM)=>{
   if(!s)return"--";
   const tr=d=>d*Math.PI/180,mph2ms=0.44704,sfcH=s.gh[0]!=null?s.gh[0]:0;
@@ -60,7 +74,7 @@ const calcSRH=(s,topM)=>{
 };
 const srhLabel=v=>{const n=parseInt(v);if(isNaN(n))return null;if(n<150)return{label:"Weak",color:"#68d391"};if(n<300)return{label:"Moderate",color:"#d69e2e"};if(n<450)return{label:"Significant",color:"#dd6b20"};return{label:"Extreme",color:"#e53e3e"};};
 
-// ── Styles & Moon ─────────────────────────────────────────────────────────────
+// ── Styles & Astronomy ────────────────────────────────────────────────────────
 const BG="#050c18",BG2="#08111f",BG3="#0d1b30",BD="#162640",BD2="#1e3a5f",TC="#cdd9e8",T2="#6a8aa8",T3="#2e4a65",ACC="#3d8bff",RED="#e53e3e";
 const cardS={background:BG2,border:"1px solid "+BD,borderRadius:10,padding:14,marginBottom:12};
 const mcS={background:BG3,border:"1px solid "+BD,borderRadius:8,padding:10,textAlign:"center"};
@@ -101,10 +115,9 @@ const fmtTz=tz=>tz?tz.replace("_"," ").split("/").pop().replace(/_/g," "):"";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App(){
-  // Zustand State
-  const { activeTab, setActiveTab, soundingHourOffset, setSoundingHourOffset } = useWeatherStore();
-
-  // Local State
+  // ── State ──
+  const { activeTab, setActiveTab } = useWeatherStore();
+  
   const [locInp,setLocInp]=useState("");
   const [loc,setLoc]=useState(null);
   const [wx,setWx]=useState(null);
@@ -133,7 +146,7 @@ export default function App(){
 
   useEffect(()=>{
     if(activeTab==="snd"&&snd&&hodoRef.current) setTimeout(()=>drawHodo(snd,hodoRef.current), 80);
-  },[activeTab,snd,soundingHourOffset]);
+  },[activeTab,snd]);
 
   useEffect(()=>{
     if(activeTab==="metar"&&loc&&metarList.length===0&&!metarLoading)loadMetarList(loc);
@@ -259,6 +272,9 @@ export default function App(){
   // ── Pre-computed ─────────────────────────────────────────────────────────────
   const isUS=loc?loc.country==="US":true;
   const _cwa=afd?afd.office:null;
+  const _cwaLow=_cwa?_cwa.toLowerCase():null;
+  const _cc=loc?loc.country:"US";
+  const _euMet=EU_MET_DATA[_cc]||null;
   const _night=wx?checkIsNight(wx.daily.sunrise[0],wx.daily.sunset[0]):false;
   const _cond=wx?wmoIcon(wx.current.weather_code,_night):null;
   const _tempF=wx?Math.round(wx.current.temperature_2m):0;
@@ -346,6 +362,17 @@ export default function App(){
                     {[["High/Low",Math.round(wx.daily.temperature_2m_max[0])+"F / "+Math.round(wx.daily.temperature_2m_min[0])+"F",Math.round(toC(wx.daily.temperature_2m_max[0]))+"C / "+Math.round(toC(wx.daily.temperature_2m_min[0]))+"C"],["Rain",wx.daily.precipitation_probability_max[0]+"%",null],["Sunrise",fmtSun(wx.daily.sunrise[0]),null],["Sunset",fmtSun(wx.daily.sunset[0]),null]].map(([k,v,s])=>(<div key={k} style={mcS}><div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".05em"}}>{k}</div><div style={{fontSize:13,fontWeight:700,marginTop:3}}>{v}</div>{s&&<div style={{fontSize:11,color:T3,marginTop:1}}>{s}</div>}</div>))}
                   </div>
                 </div>
+                {_moon&&_moonRS&&(
+                  <div style={cardS}>
+                    <div style={stitle}>Moon</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                      <div style={mcS}><div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".05em"}}>Phase</div><div style={{fontSize:22,margin:"4px 0"}}>{_moon.emoji}</div><div style={{fontSize:11,fontWeight:700}}>{_moon.name}</div></div>
+                      <div style={mcS}><div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".05em"}}>Illumination</div><div style={{fontSize:18,fontWeight:700,marginTop:6}}>{_moon.illumination}%</div></div>
+                      <div style={mcS}><div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".05em"}}>Moonrise</div><div style={{fontSize:13,fontWeight:700,marginTop:6}}>{_moonRS.rise}</div></div>
+                      <div style={mcS}><div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".05em"}}>Moonset</div><div style={{fontSize:13,fontWeight:700,marginTop:6}}>{_moonRS.set}</div></div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -357,27 +384,11 @@ export default function App(){
             {!snd&&<div style={{color:T3,padding:20}}>Load a location to view sounding data.</div>}
             {snd&&(
               <div>
-                {/* Timeline Slider */}
-                <div style={{ marginBottom: 14, background: "#08111f", padding: 14, borderRadius: 8, border: "1px solid #162640" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: "#6a8aa8", fontWeight: 700 }}>Forecast Timeline</span>
-                    <span style={{ fontSize: 12, color: "#3d8bff", fontWeight: 700 }}>+{soundingHourOffset} Hours</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" max="23" 
-                    value={soundingHourOffset} 
-                    onChange={(e) => setSoundingHourOffset(Number(e.target.value))} 
-                    style={{ width: "100%", cursor: "ew-resize" }}
-                  />
-                </div>
-
                 <div style={cardS}>
                   <div style={stitle}>Skew-T Log-P &amp; Hodograph <span style={{color:T3,fontWeight:400,fontSize:10}}>{(snd.time||"").slice(0,16)} model</span></div>
                   <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
                     {/* The Interactive React Component */}
                     <SkewT snd={snd} /> 
-                    {/* The standard Canvas for Hodograph */}
                     <canvas ref={hodoRef} width={220} height={220} style={{border:"1px solid "+BD,borderRadius:8,display:"block",cursor:"crosshair",flexShrink:0}} onMouseMove={onHodoMove} onMouseLeave={()=>setHodoTip(null)}/>
                   </div>
                 </div>
@@ -422,6 +433,33 @@ export default function App(){
                       })}
                     </div>
                   </div>
+                  <div style={{fontSize:11,color:T3,marginTop:8}}>SRH via Bunkers right-mover estimate. Yellow dashed = parcel trace from LCL.</div>
+                </div>
+
+                <div style={cardS}>
+                  <div style={stitle}>Model Profile — {(snd.time||"").slice(0,16)}</div>
+                  <div style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                      <thead>
+                        <tr style={{borderBottom:"1px solid "+BD2}}>
+                          {["hPa","Hgt (m)","Temp F","Dewpt F","Wind"].map(h=>(
+                            <th key={h} style={{padding:"5px 8px",textAlign:"right",fontSize:10,color:T3,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {snd.lvls.map((p,i)=>(
+                          <tr key={p} style={{borderBottom:"1px solid "+BD,background:i%2===0?BG2:BG3}}>
+                            <td style={{padding:"5px 8px",textAlign:"right",color:T2,fontWeight:600}}>{p}</td>
+                            <td style={{padding:"5px 8px",textAlign:"right",color:T2}}>{snd.gh[i]!=null?Math.round(snd.gh[i]).toLocaleString():"--"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"right",color:"#fc8181",fontWeight:600}}>{snd.T[i]!=null?Math.round(snd.T[i])+"":"--"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"right",color:"#68d391",fontWeight:600}}>{snd.Td[i]!=null?Math.round(snd.Td[i])+"":"--"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"right"}}>{snd.ws[i]!=null?Math.round(snd.ws[i])+" mph "+wdir(snd.wd[i]||0):"--"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 <div style={cardS}>
@@ -433,6 +471,7 @@ export default function App(){
                     <div>
                       <div style={{fontSize:11,color:T2,marginBottom:8}}>Nearest: <span style={{color:TC,fontWeight:700}}>{nearestRaobStn[1]}</span> (#{nearestRaobStn[0]}){obsSnd&&<span style={{marginLeft:8,color:T3}}>&middot; {obsSnd.time}</span>}</div>
                       {obsSndLoading&&<div style={{color:ACC,fontSize:12}}>&#8987; Loading radiosonde data...</div>}
+                      {!obsSndLoading&&!obsSnd&&<div style={{color:T3,fontSize:12}}>No data available. Soundings launch at 00Z and 12Z.</div>}
                       {obsSnd&&obsSnd.rows&&(
                         <div style={{overflowX:"auto"}}>
                           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:340}}>
@@ -455,10 +494,28 @@ export default function App(){
                               ))}
                             </tbody>
                           </table>
+                          {obsSnd.rows.length>20&&<div style={{fontSize:11,color:T3,marginTop:4}}>...{obsSnd.rows.length-20} more levels</div>}
                         </div>
                       )}
                     </div>
                   )}
+                </div>
+
+                <div style={cardS}>
+                  <div style={stitle}>How to Read a Skew-T / Hodograph</div>
+                  <div style={{fontSize:12,color:T2,lineHeight:1.8,marginBottom:10}}>
+                    <div><span style={{color:"#ef4444",fontWeight:700}}>Red</span> = Temperature. <span style={{color:"#22c55e",fontWeight:700}}>Green</span> = Dewpoint. Close together = moist.</div>
+                    <div><span style={{color:"rgba(255,200,50,0.8)",fontWeight:700}}>Yellow dashed</span> = Parcel trace from LCL. Area between parcel and T = CAPE.</div>
+                    <div><span style={{fontWeight:700,color:TC}}>Wind barbs</span>: full barb = 10 kt, pennant = 50 kt, half = 5 kt.</div>
+                    <div>Hodograph: <span style={{color:"#22c55e",fontWeight:700}}>green</span> = Sfc-3km, <span style={{color:"#fbbf24",fontWeight:700}}>yellow</span> = 3-6km, <span style={{color:"#f87171",fontWeight:700}}>red</span> = 6-9km. Curved = veering shear.</div>
+                    <div>SRH &gt;150 = supercell possible, &gt;300 = significant tornado potential.</div>
+                  </div>
+                  {[["https://www.weather.gov/jetstream/skewt","NWS JetStream - How to Read a Skew-T","Official beginner-friendly walkthrough"],["https://www.spc.noaa.gov/exper/soundings/","SPC Observed Soundings","Twice-daily radiosonde data plotted on Skew-T"],["https://rucsoundings.noaa.gov/","RUC/RAP Model Soundings","Model-derived sounding at any location and time"],["https://www.meted.ucar.edu/mesoprim/skewt/navmenu.php","MetEd - Skew-T Mastery","Free interactive training (UCAR free account)"]].map(([href,label,desc])=>(
+                    <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                      <div style={{fontSize:11,color:T2}}>{desc}</div>
+                    </a>
+                  ))}
                 </div>
               </div>
             )}
@@ -470,6 +527,10 @@ export default function App(){
           <div>
             <div style={cardS}>
               <div style={stitle}>METAR Stations{loc?" near "+loc.name:""}</div>
+              <div style={{fontSize:12,color:T2,lineHeight:1.7,marginBottom:14}}>
+                METARs are surface aviation weather observations issued every 20–60 minutes by airport stations. The links below open live viewers pre-loaded for your region. <strong style={{color:TC}}>KYNG</strong> (Youngstown-Warren Regional) and surrounding stations will be listed there.
+              </div>
+
               {metarLoading && <div style={{ color: "#3d8bff", marginBottom: 12 }}>Loading nearby stations...</div>}
               {!metarLoading && metarList.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
@@ -482,15 +543,65 @@ export default function App(){
                 </div>
               )}
 
+              {loc&&(
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>Your Region</div>
+                  {[
+                    ["https://aviationweather.gov/data/metar/?id=KYNG,KCLE,KPBZ,KPIT,KERI,KAKR,KCAD,KBKL&decoded=yes&hours=2",
+                     "Decoded METARs — NE Ohio / W PA",
+                     "KYNG, KCLE, KPBZ, KPIT, KERI, KAKR and more — decoded, human-readable format"],
+                    ["https://aviationweather.gov/data/metar/?id=KYNG,KCLE,KPBZ,KPIT,KERI,KAKR,KCAD,KBKL&decoded=no&hours=2",
+                     "Raw METARs — NE Ohio / W PA",
+                     "Same stations — raw METAR strings"],
+                    ["https://forecast.weather.gov/product.php?site=CLE&issuedby=CLE&product=OSO&format=CI",
+                     "NWS Cleveland — Hourly Surface Obs (OSO)",
+                     "Official NWS CLE hourly observations product"],
+                    ["https://aviationweather.gov/map/",
+                     "AWC METAR Map",
+                     "Interactive map showing all METAR stations globally"],
+                  ].map(([href,label,desc])=>(
+                    <a key={href} href={href} target="_blank" rel="noopener noreferrer"
+                      style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                      <div style={{fontSize:11,color:T2}}>{desc}</div>
+                    </a>
+                  ))}
+                </div>
+              )}
+
               <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>General METAR Resources</div>
               {[
-                ["https://www.aviationweather.gov/metar", "Aviation Weather Center — METAR Viewer"],
-                ["https://www.aviationweather.gov/obs/mtrs", "AWC METAR Map (interactive)"]
-              ].map(([href,label])=>(
-                <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
-                  <div style={{fontWeight:700,color:ACC}}>{label} &#8599;</div>
+                ["https://aviationweather.gov/data/metar/",
+                 "Aviation Weather Center — METAR Viewer",
+                 "Search any station ID worldwide — decoded and raw formats, TAF included"],
+                ["https://aviationweather.gov/map/",
+                 "AWC METAR Map (interactive)",
+                 "Pan and zoom to see all reporting stations on a map"],
+                ["https://aviationweather.gov/api/data/metar?ids=KYNG&format=raw&hours=2",
+                 "Direct API — KYNG raw (bookmark this)",
+                 "Bookmark-friendly direct link to Youngstown-Warren Regional latest obs"],
+                ["https://mesonet.agron.iastate.edu/ASOS/",
+                 "IEM ASOS Station List",
+                 "Full list of all ASOS stations with links to their observation history"],
+              ].map(([href,label,desc])=>(
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer"
+                  style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                  <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                  <div style={{fontSize:11,color:T2}}>{desc}</div>
                 </a>
               ))}
+
+              {isUS&&(
+                <div style={{marginTop:14}}>
+                  <div style={{fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:8}}>Quick Station Lookup</div>
+                  <div style={{fontSize:12,color:T2,marginBottom:8}}>Paste any of these into the AWC viewer above:</div>
+                  <div style={{fontFamily:"'Courier New',monospace",fontSize:12,background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",lineHeight:2}}>
+                    {["KYNG — Youngstown-Warren Regional, OH","KCLE — Cleveland Hopkins Intl, OH","KPBZ — Pittsburgh/Moon Township, PA","KPIT — Pittsburgh Intl, PA","KERI — Erie Intl, PA","KAKR — Akron-Canton, OH","KCMH — Columbus, OH","KBUF — Buffalo, NY"].map(s=>(
+                      <div key={s} style={{color:TC}}>{s}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -507,8 +618,10 @@ export default function App(){
                 </div>
                 <div style={{fontSize:10,color:T3,marginBottom:8}}>{afd.issued?new Date(afd.issued).toLocaleString():""}</div>
                 <pre style={{fontSize:11,color:T2,whiteSpace:"pre-wrap",wordBreak:"break-word",lineHeight:1.6,margin:0,fontFamily:"inherit",maxHeight:afdExpanded?"none":"200px",overflow:afdExpanded?"visible":"hidden"}}>{afd.text.replace(/\n{3,}/g,"\n\n").trim()}</pre>
+                {!afdExpanded&&afd.text.length>300&&<div style={{fontSize:11,color:ACC,marginTop:6,cursor:"pointer"}} onClick={()=>setAfdExpanded(true)}>&#9660; Show full discussion</div>}
               </div>
             )}
+            {!afd&&loc&&isUS&&<div style={{...cardS,color:T3,fontSize:13}}>&#8987; Loading forecast discussion...</div>}
             {spcWatches.length>0&&(
               <div style={cardS}>
                 <div style={stitle}>SPC Active Watches ({spcWatches.length})</div>
@@ -521,6 +634,12 @@ export default function App(){
                 {nws.map((a,i)=>(<div key={i} style={{background:"#3b0d0d",border:"1px solid "+RED,borderRadius:9,padding:"11px 14px",marginBottom:10}}><div style={{fontWeight:800,color:"#fc8181"}}>&#9888;&#65039; {a.event}</div><div style={{fontSize:11,color:"#fc8181",opacity:.8,marginTop:3}}>{(a.headline||"").slice(0,300)}</div></div>))}
               </div>
             )}
+            {mds.length>0&&(
+              <div style={cardS}>
+                <div style={stitle}>SPC Mesoscale Discussions ({mds.length})</div>
+                {mds.map((m,i)=>(<div key={i} style={{borderBottom:i===mds.length-1?"none":"1px solid "+BD,paddingBottom:12,marginBottom:12}}><div style={{fontSize:11,color:ACC,fontWeight:700,marginBottom:4}}>{m.id} &middot; {m.issued?new Date(m.issued).toLocaleString():""}</div><pre style={{fontSize:11,color:T2,whiteSpace:"pre-wrap",wordBreak:"break-word",lineHeight:1.6,margin:0,fontFamily:"inherit"}}>{m.text.trim()}</pre></div>))}
+              </div>
+            )}
           </div>
         )}
 
@@ -528,18 +647,105 @@ export default function App(){
         {activeTab==="rsrc"&&(
           <div>
             <div style={cardS}>
-              <div style={stitle}>Weather Links & Model Guidance</div>
-              <a href="https://www.tropicaltidbits.com/analysis/models/" target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
-                <div style={{fontWeight:700,color:ACC,marginBottom:2}}>Tropical Tidbits Models &#8599;</div>
-                <div style={{fontSize:11,color:T2}}>GFS, EURO, NAM, HRRR - fast, global coverage</div>
+              {isUS?(
+                <>
+                  <div style={stitle}>Your NWS Office{_cwa?" - "+_cwa:""}</div>
+                  {!loc&&<div style={{color:T3,fontSize:12}}>Search a location to get regional links.</div>}
+                  {loc&&!_cwa&&<div style={{color:T3,fontSize:12}}>Loading office info...</div>}
+                  {_cwaLow&&[
+                    ["https://www.weather.gov/"+_cwaLow,"NWS "+_cwa+" Homepage","Main office page"],
+                    loc?["https://forecast.weather.gov/MapClick.php?lat="+loc.lat.toFixed(4)+"&lon="+loc.lon.toFixed(4),"Point Forecast - "+loc.name,"7-day text forecast for your coordinates"]:null,
+                    loc?["https://forecast.weather.gov/MapClick.php?lat="+loc.lat.toFixed(4)+"&lon="+loc.lon.toFixed(4)+"&FcstType=graphical","Hourly Weather Graph","Temp, wind, precip breakdown"]:null,
+                    _cwa?["https://forecast.weather.gov/product.php?site="+_cwa+"&issuedby="+_cwa+"&product=AFD&format=CI&version=1&glossary=0","Area Forecast Discussion (AFD)","Latest forecaster reasoning"]:null,
+                    _cwa?["https://forecast.weather.gov/product.php?site="+_cwa+"&issuedby="+_cwa+"&product=HWO&format=CI","Hazardous Weather Outlook","Potential hazards next 7 days"]:null,
+                    ["https://www.weather.gov/"+_cwaLow+"/climate","Local Climate Data","Records, climatology, monthly summaries"],
+                  ].filter(Boolean).map(([href,label,desc])=>(
+                    <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                      <div style={{fontSize:11,color:T2}}>{desc}</div>
+                    </a>
+                  ))}
+                </>
+              ):(
+                <>
+                  <div style={stitle}>{_euMet?"National Met Office - "+_euMet.name:"Regional Resources"}</div>
+                  {!loc&&<div style={{color:T3,fontSize:12}}>Search a location to get regional links.</div>}
+                  {_euMet&&_euMet.links.map(([href,label,desc])=>(
+                    <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                      <div style={{fontSize:11,color:T2}}>{desc}</div>
+                    </a>
+                  ))}
+                  {!_euMet&&loc&&<div style={{color:T3,fontSize:12,marginBottom:8}}>No specific links for {_cc} yet.</div>}
+                  {[["https://www.meteoalarm.org/","MeteoAlarm - Pan-European Warnings","Official European warning aggregator - all 35+ countries"],["https://openweathermap.org/","OpenWeatherMap","Good general-purpose forecast for any global city"]].map(([href,label,desc])=>(
+                    <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                      <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                      <div style={{fontSize:11,color:T2}}>{desc}</div>
+                    </a>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {isUS&&(
+              <div style={cardS}>
+                <div style={stitle}>Storm Prediction Center</div>
+                {[["https://www.spc.noaa.gov/products/outlook/","Day 1-3 Convective Outlooks","Categorical and probabilistic severe weather outlooks"],["https://www.spc.noaa.gov/products/outlook/day4-8otlk.html","Days 4-8 Outlooks","Extended range probabilistic outlook"],["https://www.spc.noaa.gov/climo/reports/today.html","Today's Storm Reports","Real-time tornado, hail, wind reports"],["https://www.spc.noaa.gov/products/watch/","Active Watches","Currently active watches"],["https://www.spc.noaa.gov/products/md/","Mesoscale Discussions","Short-term convective threat guidance"]].map(([href,label,desc])=>(
+                  <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                    <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                    <div style={{fontSize:11,color:T2}}>{desc}</div>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            <div style={cardS}>
+              <div style={stitle}>Satellite Imagery</div>
+              <div style={{fontSize:12,color:T2,marginBottom:10,lineHeight:1.6}}><strong style={{color:TC}}>Satellite shows clouds. Radar shows precipitation.</strong> A solid overcast can show zero radar return if nothing is falling.</div>
+              {(isUS?[["https://www.star.nesdis.noaa.gov/GOES/conus.php?sat=G16","GOES-16 East - NESDIS/STAR","Official NOAA GOES-East: visible, IR, water vapor"],["https://weather.cod.edu/satrad/?parms=subregional-GOES_East-13-200-1-100-1","College of DuPage GOES Viewer","Fast regional viewer with many band options"],["https://zoom.earth/","Zoom Earth","Near real-time satellite + rain overlay, global"]]:[["https://www.metoffice.gov.uk/weather/maps-and-charts/satellite-images","Met Office Satellite Viewer","UK Met Office visible and IR loops"],["https://view.eumetsat.int/productviewer?v=default","EUMETSAT EUMETView","Meteosat full-disc and regional products"],["https://www.sat24.com/en/eu","SAT24 Europe","Animated satellite loop for Europe"],["https://zoom.earth/","Zoom Earth","Near real-time satellite + rain overlay, global"]]).map(([href,label,desc])=>(
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                  <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                  <div style={{fontSize:11,color:T2}}>{desc}</div>
+                </a>
+              ))}
+              <a href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                <div style={{fontWeight:700,color:ACC,marginBottom:2}}>NASA Worldview &#8599;</div>
+                <div style={{fontSize:11,color:T2}}>Full-resolution imagery for any date since 2012</div>
               </a>
-              <a href="https://zoom.earth/" target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
-                <div style={{fontWeight:700,color:ACC,marginBottom:2}}>Zoom Earth Satellite &#8599;</div>
-                <div style={{fontSize:11,color:T2}}>Near real-time satellite + rain overlay</div>
-              </a>
+            </div>
+
+            <div style={cardS}>
+              <div style={stitle}>Soundings &amp; Upper Air</div>
+              {[["https://weather.uwyo.edu/upperair/sounding.html","U. Wyoming Soundings","Observed radiosonde data - global archive"],["https://www.spc.noaa.gov/exper/soundings/","SPC Observed Soundings","Twice-daily data plotted on Skew-T"],["https://rucsoundings.noaa.gov/","RUC/RAP Model Soundings","Model-derived sounding anywhere, anytime"],["https://www.meted.ucar.edu/mesoprim/skewt/navmenu.php","MetEd - Skew-T Module","Free interactive training (UCAR account)"]].map(([href,label,desc])=>(
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                  <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                  <div style={{fontSize:11,color:T2}}>{desc}</div>
+                </a>
+              ))}
+            </div>
+
+            <div style={cardS}>
+              <div style={stitle}>Model Guidance</div>
+              {[[true,"https://www.tropicaltidbits.com/analysis/models/","Tropical Tidbits","GFS, EURO, NAM, HRRR - fast, global coverage"],[!isUS,"https://www.ecmwf.int/en/forecasts/charts/","ECMWF Charts","Official European Centre - global gold standard"],[true,"https://mag.ncep.noaa.gov/","NCEP Model Analysis","Official NOAA model output"],[true,"https://www.pivotalweather.com/model.php","Pivotal Weather","Professional model viewer - great for comparing runs"],[!isUS,"https://www.meteoblue.com/en/weather/maps/","Meteoblue Maps","European-focused model maps"]].filter(r=>r[0]).map(([,href,label,desc])=>(
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                  <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                  <div style={{fontSize:11,color:T2}}>{desc}</div>
+                </a>
+              ))}
+            </div>
+
+            <div style={cardS}>
+              <div style={stitle}>Learning &amp; Reference</div>
+              {[["https://www.weather.gov/jetstream/","NWS JetStream - Online School","Comprehensive met education from NWS"],["https://www.meted.ucar.edu/","MetEd (UCAR)","Free training modules - requires free account"],["https://glossary.ametsoc.org/wiki/Main_Page","AMS Glossary of Meteorology","Authoritative definitions for weather terms"],["https://aviationweather.gov/data/metar/","Aviation Weather Center - METARs","Global METAR viewer and decoder"]].map(([href,label,desc])=>(
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",background:BG3,border:"1px solid "+BD,borderRadius:8,padding:"10px 14px",marginBottom:8,textDecoration:"none",color:TC}}>
+                  <div style={{fontWeight:700,color:ACC,marginBottom:2}}>{label} &#8599;</div>
+                  <div style={{fontSize:11,color:T2}}>{desc}</div>
+                </a>
+              ))}
             </div>
           </div>
         )}
+
       </div>
 
       {hodoTip&&<div style={Object.assign({},tipStyle,{left:hodoTip.x+14,top:hodoTip.y-10})}><div style={{fontWeight:700,color:ACC,marginBottom:2}}>{hodoTip.label}</div><div>{hodoTip.val}</div></div>}
